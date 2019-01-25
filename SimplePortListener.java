@@ -11,12 +11,13 @@ import java.net.Socket;
  *
  */
 public class SimplePortListener {
-
-    private static final int PORT = 8800;
+    private static final int DEFAULT_PORT = 8800;
     private static final long SLEEP_TIME_MS = 5;
 
     public static void main(String[] args) throws Exception {
-        ServerSocket serverSocket = new ServerSocket(PORT);
+        int port = (args.length == 1) ? Integer.parseInt(args[0]) : DEFAULT_PORT;
+        ServerSocket serverSocket = new ServerSocket(port);
+        System.out.println("Listener started - port: " + port);
 
         while (true)
         {
