@@ -28,16 +28,16 @@ public class SimplePortListener {
                 System.out.println("** REQUEST START **");
 
                 // Read in and echo out what comes in
+                char[] buffer = new char[1024];
                 BufferedReader requestReader = new BufferedReader(new InputStreamReader(client.getInputStream()));
                 while (awaitReadyReceive(requestReader)) {
                     try {
-                        String requesttData = requestReader.readLine();
-                        // If we read in a null, the data is done.
-                        if (requesttData == null) {
+                        int sizeRead = requestReader.read(buffer, 0, buffer.length);
+                        if (sizeRead == 0) {
                             break;
                         }
-
-                        System.out.println(requesttData);
+                        String output = new String(buffer, 0, sizeRead);
+                        System.out.print(output);
                     } catch (IOException ioe) {
                         System.err.println("Connection from client closed unexpectedly: " +
                                 "(" + ioe.getClass().toString() + ") " + ioe.getMessage());
@@ -45,6 +45,7 @@ public class SimplePortListener {
                     }
                 }
             } finally {
+                System.out.println();
                 System.out.println("** REQUEST COMPLETED **");
                 System.out.println();
             }
