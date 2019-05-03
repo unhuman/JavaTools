@@ -11,13 +11,13 @@ Some times tests that require delays can take a long time to run.
 An example of speeding up delays is a touch() method.  If you wanted your test to have an item that timed out in 2 seconds, a test that touch() worked properly would do the following:
 
 1.  Create the object with a TTL of 2 seconds
-- Thread.sleep() for 2 seconds
-- Ensure object timed out
-- Create the object with a TTL of 2 seconds
-- Thread.sleep() for 1 seconds
-- perform touch()
-- Thread.sleep() for 1 seconds
-- Ensure object still available
+2. Thread.sleep() for 2 seconds
+3. Ensure object timed out
+4. Create the object with a TTL of 2 seconds
+5. Thread.sleep() for 1 seconds
+6. perform touch()
+7. Thread.sleep() for 1 seconds
+8. Ensure object still available
 
 In the above example we're sleeping for 4 seconds.  This can go down to nanoseconds if we just spoofed the clock.
 
