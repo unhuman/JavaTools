@@ -2,8 +2,6 @@ package com.unhuman.dataBuilder.descriptor;
 
 import com.unhuman.dataBuilder.input.PromptHelper;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 public class IdDescriptor extends DataItemDescriptor {
@@ -19,14 +17,9 @@ public class IdDescriptor extends DataItemDescriptor {
     }
 
     public void obtainConfiguration() {
-        List<String> idKinds = new ArrayList<>();
-        for (IdType inputType: IdType.values()) {
-            idKinds.add(inputType.name());
-        }
-
         String checkIdType =
-                PromptHelper.promptForEnumValue("data type for id",
-                        idKinds.toArray(new String[idKinds.size()]));
+                PromptHelper.promptForEnumValue("data type for id", PromptHelper.StartingIndex.ONE,
+                        IdType.values());
 
         idType = IdType.valueOf(checkIdType);
 
@@ -45,7 +38,7 @@ public class IdDescriptor extends DataItemDescriptor {
         }
     }
 
-    public String getNextValue() {
+    public String getNextValue(NullHandler nullHandler) {
         switch (idType) {
             case INCREMENTING:
                 return incrementingCurrentIdIsString

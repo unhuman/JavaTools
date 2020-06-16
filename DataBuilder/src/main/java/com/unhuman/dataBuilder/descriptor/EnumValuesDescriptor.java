@@ -42,13 +42,13 @@ public class EnumValuesDescriptor extends DataItemDescriptor {
     }
 
     @Override
-    public String getNextValue() {
+    public String getNextValue(NullHandler nullHandler) {
         int itemRandom = random.nextInt(100);
         for (String value: dataProbability.keySet()) {
             if (itemRandom < dataProbability.get(value)) {
                 return '"' + value + '"';
             }
         }
-        return null;
+        return NullHandler.AS_NULL.equals(nullHandler) ? null : "";
     }
 }

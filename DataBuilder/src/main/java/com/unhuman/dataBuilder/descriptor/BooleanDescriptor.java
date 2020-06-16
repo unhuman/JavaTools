@@ -18,7 +18,7 @@ public class BooleanDescriptor extends DataItemDescriptor {
     }
 
     @Override
-    public String getNextValue() {
+    public String getNextValue(NullHandler nullHandler) {
         int checkPercentage = random.nextInt(100);
         return Boolean.toString(checkPercentage < percentTrue);
     }

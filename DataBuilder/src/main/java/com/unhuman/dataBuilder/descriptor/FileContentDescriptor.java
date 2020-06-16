@@ -21,12 +21,12 @@ public class FileContentDescriptor extends DataItemDescriptor {
     }
 
     @Override
-    public String getNextValue() {
+    public String getNextValue(NullHandler nullHandler) {
         Matcher matcher = getCurrentMatcherState();
         String value = matcher.group(fieldFromContent);
 
         if (value == null) {
-            return null;
+            return NullHandler.AS_NULL.equals(nullHandler) ? null : "";
         }
         return isString ? '"' + value + '"' : value;
     }

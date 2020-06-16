@@ -2,7 +2,6 @@ package com.unhuman.dataBuilder.descriptor;
 
 import com.unhuman.dataBuilder.input.PromptHelper;
 
-import java.io.Console;
 import java.util.Random;
 
 import static com.unhuman.dataBuilder.input.PromptHelper.error;
@@ -19,8 +18,6 @@ public class IntegerDescriptor extends DataItemDescriptor {
 
     @Override
     public void obtainConfiguration() {
-        Console console = System.console();
-
         while (true) {
             minValue = PromptHelper.promptIntegerValue("Minimum Value");
             maxValue = PromptHelper.promptIntegerValue("Maximum Value");
@@ -32,7 +29,7 @@ public class IntegerDescriptor extends DataItemDescriptor {
     }
 
     @Override
-    public String getNextValue() {
+    public String getNextValue(NullHandler nullHandler) {
         int nextValue = minValue + random.nextInt(maxValue - minValue);
         return Integer.toString(nextValue);
     }

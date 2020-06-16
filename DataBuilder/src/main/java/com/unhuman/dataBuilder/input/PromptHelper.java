@@ -8,6 +8,8 @@ public class PromptHelper {
     private static final int NUMBER_SELECT_SPACES = 5;
     private static final int STREAM_FLUSH_MS = 25;
 
+    public enum StartingIndex { ZERO, ONE }
+
     public static String promptForValue(String item, String defaultValue) {
         String input = null;
         Scanner scanner = new Scanner(System.in);
@@ -85,31 +87,33 @@ public class PromptHelper {
         }
     }
 
-    public static String promptForEnumValue(String instructions, String... acceptableValues) {
+    public static String promptForEnumValue(String instructions, StartingIndex startingIndex,
+                                            Enum[] acceptableValues) {
         Scanner scanner = new Scanner(System.in);
 
         while (true) {
             output("Select %s:\n", instructions);
-            for (int i = 1; i <= acceptableValues.length; i++) {
+            for (int i = startingIndex.ordinal(); i < acceptableValues.length + startingIndex.ordinal(); i++) {
                 String number = Integer.toString(i);
                 String spaces = IntStream.range(0, NUMBER_SELECT_SPACES - number.length())
                         .mapToObj(j -> " ").collect(Collectors.joining(""));
-                output("%s%s. %s\n", spaces, number, acceptableValues[i - 1]);
+                output("%s%s. %s\n", spaces, number, acceptableValues[i - startingIndex.ordinal()]);
             }
             output("Selection: ");
 
             String input = scanner.nextLine();
 
-            for (String acceptableValue: acceptableValues) {
-                if (acceptableValue.equals(input)) {
-                    return acceptableValue;
+            for (Enum acceptableValue: acceptableValues) {
+                String acceptableValueString = acceptableValue.name();
+                if (acceptableValueString.equals(input)) {
+                    return acceptableValueString;
                 }
             }
 
             try {
-                int selectedIndex = Integer.parseInt(input) - 1;
+                int selectedIndex = Integer.parseInt(input) - startingIndex.ordinal();
                 if (selectedIndex >= 0 && selectedIndex < acceptableValues.length) {
-                    return acceptableValues[selectedIndex];
+                    return acceptableValues[selectedIndex].name();
                 }
             } catch (Exception e) {
                 // continue

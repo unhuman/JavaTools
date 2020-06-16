@@ -2,6 +2,7 @@ package com.unhuman.dataBuilder;
 
 import com.unhuman.dataBuilder.descriptor.BooleanDescriptor;
 import com.unhuman.dataBuilder.descriptor.DataItemDescriptor;
+import com.unhuman.dataBuilder.descriptor.EmptyDescriptor;
 import com.unhuman.dataBuilder.descriptor.EnumValuesDescriptor;
 import com.unhuman.dataBuilder.descriptor.FileContentDescriptor;
 import com.unhuman.dataBuilder.descriptor.IdDescriptor;
@@ -15,20 +16,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.unhuman.dataBuilder.input.PromptHelper.error;
 import static com.unhuman.dataBuilder.input.PromptHelper.output;
 
 public class DataBuilder {
     private enum FileTypes { INPUT, OUTPUT }
-    private enum InputTypes { ID, FILE_CONTENT, ENUM_VALUES, BOOLEAN, INTEGER }
+    private enum InputTypes { ID, FILE_CONTENT, BOOLEAN, INTEGER, EMPTY_STRING, ENUM_VALUES }
+    private enum SerializationTypes { CSV, JSON }
 
     protected void process() {
         ArrayList<DataItemDescriptor> items = new ArrayList<>();
 
-        List<String> dataKinds = new ArrayList<>();
+        List<Enum> availableInputTypes = new ArrayList<>();
         for (InputTypes inputType: InputTypes.values()) {
-            dataKinds.add(inputType.name());
+            availableInputTypes.add(inputType);
         }
 
         String inputContent = null;
@@ -74,15 +77,19 @@ public class DataBuilder {
                 continue;
             }
 
+            InputTypes[] displayInputTypes = new InputTypes[availableInputTypes.size()];
             String selectedType =
-                    PromptHelper.promptForEnumValue("data type for " + name,
-                            dataKinds.toArray(new String[dataKinds.size()]));
+                    PromptHelper.promptForEnumValue("data type for " + name, PromptHelper.StartingIndex.ONE,
+                            availableInputTypes.toArray(displayInputTypes));
 
             DataItemDescriptor descriptor = null;
             switch (InputTypes.valueOf(selectedType)) {
+                case EMPTY_STRING:
+                    descriptor = new EmptyDescriptor(name);
+                    break;
                 case ID:
                     // only permit one id
-                    dataKinds.remove(InputTypes.ID.name());
+                    availableInputTypes.remove(InputTypes.ID);
                     descriptor = new IdDescriptor(name);
                     break;
                 case FILE_CONTENT:
@@ -106,10 +113,40 @@ public class DataBuilder {
         }
 
         output("\n-- Serialization --\n");
-        boolean serializeNullValues = PromptHelper.promptYesNo("Do you want to serialize null values?");
 
-        // now process the data
-        // Probably better if we used Jackson to build this...
+        SerializationTypes serializationType;
+        if (outputFile.toString().endsWith(".csv")) {
+            serializationType = SerializationTypes.JSON;
+        } else if (outputFile.toString().endsWith(".json")) {
+            serializationType = SerializationTypes.CSV;
+        } else {
+            serializationType = SerializationTypes.valueOf(PromptHelper.promptForEnumValue(
+                    "serialization desired", PromptHelper.StartingIndex.ONE, SerializationTypes.values()));
+        }
+
+        String serializedContent;
+        switch (serializationType) {
+            case CSV:
+                serializedContent = serializeCsv(items, inputContent, matchRegex);
+                break;
+            case JSON:
+                boolean serializeNullValues = PromptHelper.promptYesNo("Do you want to serialize null values?");
+                serializedContent = serializeJson(items, inputContent, matchRegex, serializeNullValues);
+                break;
+            default:
+                throw new RuntimeException("Invalid serialization: " + serializationType);
+        }
+
+        try {
+            Files.writeString(outputFile.toPath(), serializedContent);
+            output("File %s successfully written\n ", outputFile.getPath());
+        } catch (IOException ioException) {
+            error("Problem writing output file %s\n", outputFile.getPath());
+        }
+    }
+
+    private String serializeJson(ArrayList<DataItemDescriptor> items, String inputContent, String matchRegex,
+                                 boolean serializeNullValues) {
         StringBuilder builder = new StringBuilder(2048);
         Pattern pattern = Pattern.compile(matchRegex);
         Matcher matcher = pattern.matcher(inputContent);
@@ -125,8 +162,8 @@ public class DataBuilder {
             // process all the descriptors
             boolean firstDescriptor = true;
             for (DataItemDescriptor descriptor: items) {
-                descriptor.setMatchedContent(matcher);
-                String value = descriptor.getNextValue();
+                descriptor.setMatcher(matcher);
+                String value = descriptor.getNextValue(DataItemDescriptor.NullHandler.AS_NULL);
                 if (value != null || serializeNullValues) {
                     if (!firstDescriptor) {
                         builder.append(",");
@@ -139,13 +176,22 @@ public class DataBuilder {
             builder.append("}");
         }
         builder.append("]");
+        return builder.toString();
+    }
 
-        try {
-            Files.writeString(outputFile.toPath(), builder.toString());
-            output("File %s successfully written\n ", outputFile.getPath());
-        } catch (IOException ioException) {
-            error("Problem writing output file %s\n", outputFile.getPath());
+    private String serializeCsv(ArrayList<DataItemDescriptor> items, String inputContent, String matchRegex) {
+        StringBuilder builder = new StringBuilder(2048);
+        Pattern pattern = Pattern.compile(matchRegex);
+        Matcher matcher = pattern.matcher(inputContent);
+
+        builder.append(items.stream().map(item -> item.getName()).collect(Collectors.joining(",")));
+        while (matcher.find()) {
+            builder.append("\n");
+            builder.append(items.stream().map(item ->
+                    item.setMatcher(matcher).getNextValue(DataItemDescriptor.NullHandler.EMPTY))
+                    .collect(Collectors.joining(",")));
         }
+        return builder.toString();
     }
 
     private File getFile(FileTypes type) {
