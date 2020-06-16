@@ -2,11 +2,14 @@ package com.unhuman.dataBuilder;
 
 import com.unhuman.dataBuilder.descriptor.BooleanDescriptor;
 import com.unhuman.dataBuilder.descriptor.DataItemDescriptor;
+import com.unhuman.dataBuilder.descriptor.EmailDescriptor;
 import com.unhuman.dataBuilder.descriptor.EmptyDescriptor;
 import com.unhuman.dataBuilder.descriptor.EnumValuesDescriptor;
 import com.unhuman.dataBuilder.descriptor.FileContentDescriptor;
+import com.unhuman.dataBuilder.descriptor.FirstNameDescriptor;
 import com.unhuman.dataBuilder.descriptor.IdDescriptor;
 import com.unhuman.dataBuilder.descriptor.IntegerDescriptor;
+import com.unhuman.dataBuilder.descriptor.LastNameDescriptor;
 import com.unhuman.dataBuilder.input.PromptHelper;
 
 import java.io.File;
@@ -14,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -23,7 +27,8 @@ import static com.unhuman.dataBuilder.input.PromptHelper.output;
 
 public class DataBuilder {
     private enum FileTypes { INPUT, OUTPUT }
-    private enum InputTypes { ID, FILE_CONTENT, BOOLEAN, INTEGER, EMPTY_STRING, ENUM_VALUES }
+    private enum InputTypes { ID, BOOLEAN, INTEGER,
+        EMAIL, EMPTY_STRING, ENUM_VALUES, FILE_CONTENT, FIRST_NAME, LAST_NAME }
     private enum SerializationTypes { CSV, JSON }
 
     protected void process() {
@@ -79,30 +84,40 @@ public class DataBuilder {
 
             InputTypes[] displayInputTypes = new InputTypes[availableInputTypes.size()];
             String selectedType =
-                    PromptHelper.promptForEnumValue("data type for " + name, PromptHelper.StartingIndex.ONE,
+                    PromptHelper.promptForEnumValue("data type for " + name,
+                            PromptHelper.StartingIndex.ONE,
                             availableInputTypes.toArray(displayInputTypes));
 
             DataItemDescriptor descriptor = null;
             switch (InputTypes.valueOf(selectedType)) {
-                case EMPTY_STRING:
-                    descriptor = new EmptyDescriptor(name);
-                    break;
                 case ID:
                     // only permit one id
                     availableInputTypes.remove(InputTypes.ID);
                     descriptor = new IdDescriptor(name);
-                    break;
-                case FILE_CONTENT:
-                    descriptor = new FileContentDescriptor(name);
-                    break;
-                case ENUM_VALUES:
-                    descriptor = new EnumValuesDescriptor(name);
                     break;
                 case BOOLEAN:
                     descriptor = new BooleanDescriptor(name);
                     break;
                 case INTEGER:
                     descriptor = new IntegerDescriptor(name);
+                    break;
+                case EMAIL:
+                    descriptor = new EmailDescriptor(name);
+                    break;
+                case EMPTY_STRING:
+                    descriptor = new EmptyDescriptor(name);
+                    break;
+                case ENUM_VALUES:
+                    descriptor = new EnumValuesDescriptor(name);
+                    break;
+                case FILE_CONTENT:
+                    descriptor = new FileContentDescriptor(name);
+                    break;
+                case FIRST_NAME:
+                    descriptor = new FirstNameDescriptor(name);
+                    break;
+                case LAST_NAME:
+                    descriptor = new LastNameDescriptor(name);
                     break;
                 default:
                     // not expected
@@ -152,7 +167,11 @@ public class DataBuilder {
         Matcher matcher = pattern.matcher(inputContent);
         builder.append("[");
         boolean firstMatch = true;
+        Random random = new Random();
         while (matcher.find()) {
+            // Create a seed for each round
+            long randomSeed = random.nextLong();
+
             if (!firstMatch) {
                 builder.append(",");
             }
@@ -162,7 +181,7 @@ public class DataBuilder {
             // process all the descriptors
             boolean firstDescriptor = true;
             for (DataItemDescriptor descriptor: items) {
-                descriptor.setMatcher(matcher);
+                descriptor.setIterationState(matcher, randomSeed);
                 String value = descriptor.getNextValue(DataItemDescriptor.NullHandler.AS_NULL);
                 if (value != null || serializeNullValues) {
                     if (!firstDescriptor) {
@@ -175,7 +194,7 @@ public class DataBuilder {
             }
             builder.append("}");
         }
-        builder.append("]");
+        builder.append("\n]");
         return builder.toString();
     }
 
@@ -185,10 +204,16 @@ public class DataBuilder {
         Matcher matcher = pattern.matcher(inputContent);
 
         builder.append(items.stream().map(item -> item.getName()).collect(Collectors.joining(",")));
+
+        Random random = new Random();
         while (matcher.find()) {
+            // Create a seed for each round
+            long randomSeed = random.nextLong();
+
             builder.append("\n");
             builder.append(items.stream().map(item ->
-                    item.setMatcher(matcher).getNextValue(DataItemDescriptor.NullHandler.EMPTY))
+                    item.setIterationState(matcher, randomSeed)
+                            .getNextValue(DataItemDescriptor.NullHandler.EMPTY))
                     .collect(Collectors.joining(",")));
         }
         return builder.toString();

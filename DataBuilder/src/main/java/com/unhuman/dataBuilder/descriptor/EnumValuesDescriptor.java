@@ -20,11 +20,11 @@ public class EnumValuesDescriptor extends DataItemDescriptor {
     public void obtainConfiguration() {
         int totalPercentage = 0;
         while (totalPercentage != 100) {
-            String item = PromptHelper.promptForValue("Enter enum item (empty to stop / null remainder)", "");
+            String item = PromptHelper.promptForValue("enum item (empty to stop / null remainder)", "");
             if (item.isBlank()) {
                 break;
             }
-            int percentage = PromptHelper.promptIntegerValue("Enter percentage for '" + item + "'");
+            int percentage = PromptHelper.promptIntegerValue("percentage for '" + item + "'");
             if (percentage <= 0 || percentage > 100) {
                 error("Percentage (%d) invalid\n", percentage);
                 continue;
