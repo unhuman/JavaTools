@@ -1,17 +1,25 @@
 package com.unhuman.dataBuilder.descriptor;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.Random;
 import java.util.regex.Matcher;
 
 public abstract class DataItemDescriptor {
     public enum NullHandler { AS_NULL, EMPTY }
 
+    @JsonProperty
     private String name;
+
     private Matcher currentMatcherState;
     private Long randomSeed;
 
     public DataItemDescriptor(String name) {
         this.name = name;
+    }
+
+    protected DataItemDescriptor() {
+        // For Jackson
     }
 
     protected Long getRandomSeed() {

@@ -5,6 +5,11 @@ public class FirstNameDescriptor extends DataItemDescriptor {
         super(name);
     }
 
+    private FirstNameDescriptor() {
+        // For Jackson
+        super();
+    }
+
     @Override
     public void obtainConfiguration() {
 
@@ -12,7 +17,7 @@ public class FirstNameDescriptor extends DataItemDescriptor {
 
     @Override
     public String getNextValue(NullHandler nullHandler) {
-        return FIRST_NAMES[getNextRandom(FIRST_NAMES.length)];
+        return '"' + FIRST_NAMES[getNextRandom(FIRST_NAMES.length) + '"'];
     }
 
     // snagged from: https://raw.githubusercontent.com/dominictarr/random-name/master/first-names.json

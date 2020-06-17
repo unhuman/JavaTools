@@ -1,15 +1,24 @@
 package com.unhuman.dataBuilder.descriptor;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.unhuman.dataBuilder.input.PromptHelper;
 
 import java.util.regex.Matcher;
 
 public class FileContentDescriptor extends DataItemDescriptor {
+    @JsonProperty
     private int fieldFromContent = -1;
+
+    @JsonProperty
     private boolean isString = false;
 
     public FileContentDescriptor(String name) {
         super(name);
+    }
+
+    private FileContentDescriptor() {
+        // For Jackson
+        super();
     }
 
     @Override

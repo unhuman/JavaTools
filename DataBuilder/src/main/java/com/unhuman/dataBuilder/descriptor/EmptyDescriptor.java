@@ -5,6 +5,11 @@ public class EmptyDescriptor extends DataItemDescriptor {
         super(name);
     }
 
+    private EmptyDescriptor() {
+        // For Jackson
+        super();
+    }
+
     @Override
     public void obtainConfiguration() {
 

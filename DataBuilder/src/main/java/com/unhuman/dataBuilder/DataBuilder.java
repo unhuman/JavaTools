@@ -1,5 +1,7 @@
 package com.unhuman.dataBuilder;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.unhuman.dataBuilder.descriptor.BooleanDescriptor;
 import com.unhuman.dataBuilder.descriptor.DataItemDescriptor;
 import com.unhuman.dataBuilder.descriptor.EmailDescriptor;
@@ -10,10 +12,11 @@ import com.unhuman.dataBuilder.descriptor.FirstNameDescriptor;
 import com.unhuman.dataBuilder.descriptor.IdDescriptor;
 import com.unhuman.dataBuilder.descriptor.IntegerDescriptor;
 import com.unhuman.dataBuilder.descriptor.LastNameDescriptor;
+import com.unhuman.dataBuilder.descriptor.StaticValueDescriptor;
 import com.unhuman.dataBuilder.input.PromptHelper;
+import picocli.CommandLine;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,32 +27,95 @@ import java.util.stream.Collectors;
 
 import static com.unhuman.dataBuilder.input.PromptHelper.error;
 import static com.unhuman.dataBuilder.input.PromptHelper.output;
+import static java.lang.System.exit;
 
 public class DataBuilder {
-    private enum FileTypes { INPUT, OUTPUT }
+    private static final int SUCCESS = 0;
+    private static final int CONFIG_ERROR = -1;
+    private static final int FILE_ERROR = -2;
+
+    // When updating this list, you need to also update promptSettingsConfig() and getInheritanceObjectMapper()
     private enum InputTypes { ID, BOOLEAN, INTEGER,
-        EMAIL, EMPTY_STRING, ENUM_VALUES, FILE_CONTENT, FIRST_NAME, LAST_NAME }
+        EMAIL, EMPTY_STRING, ENUM_VALUES, FILE_CONTENT, FIRST_NAME, LAST_NAME, STATIC_VALUE }
     private enum SerializationTypes { CSV, JSON }
 
-    protected void process() {
-        ArrayList<DataItemDescriptor> items = new ArrayList<>();
-
-        List<Enum> availableInputTypes = new ArrayList<>();
-        for (InputTypes inputType: InputTypes.values()) {
-            availableInputTypes.add(inputType);
+    protected int process(CommandParams commandParams) {
+        String inputContent = null;
+        try {
+            inputContent = Files.readString(commandParams.getDataInputFile().toPath());
+        } catch (Exception e) {
+            error("Problem reading in data file: %s: %s\n", inputContent, e.getMessage());
+            return FILE_ERROR;
         }
 
-        String inputContent = null;
-        while (true) {
+        SettingsConfig settingsConfig;
+        if (commandParams.getSettingsConfigInputFile() != null) {
             try {
-                File inputFile = getFile(FileTypes.INPUT);
-                inputContent = Files.readString(inputFile.toPath());
-                break;
+                settingsConfig = getInheritanceObjectMapper()
+                        .readValue(commandParams.getSettingsConfigInputFile(), SettingsConfig.class);
             } catch (Exception e) {
-                error("Problem reading in file: %s\n", inputContent);
+                error("Problem reading in settings/config file: %s: %s\n",
+                        commandParams.getSettingsConfigInputFile().getPath(), e.getMessage());
+                return FILE_ERROR;
+            }
+        } else {
+            settingsConfig = promptSettingsConfig(inputContent);
+        }
+
+        output("\n-- Serialization --\n");
+
+        SerializationTypes serializationType;
+        if (commandParams.getDataOutputFile().toString().endsWith(".csv")) {
+            serializationType = SerializationTypes.CSV;
+        } else if (commandParams.getDataOutputFile().toString().endsWith(".json")) {
+            serializationType = SerializationTypes.JSON;
+        } else {
+            serializationType = SerializationTypes.valueOf(PromptHelper.promptForEnumValue(
+                    "serialization desired", PromptHelper.StartingIndex.ONE, SerializationTypes.values()));
+        }
+
+        String serializedContent;
+        switch (serializationType) {
+            case CSV:
+                serializedContent = serializeCsv(inputContent, settingsConfig);
+                break;
+            case JSON:
+                boolean serializeNullValues = PromptHelper.promptYesNo("Do you want to serialize null values?");
+                serializedContent = serializeJson(inputContent, settingsConfig, serializeNullValues);
+                break;
+            default:
+                throw new RuntimeException("Invalid serialization: " + serializationType);
+        }
+
+        int status = SUCCESS;
+
+        try {
+            Files.writeString(commandParams.getDataOutputFile().toPath(), serializedContent);
+            output("Data file %s successfully written\n", commandParams.getDataOutputFile().getPath());
+        } catch (Exception e) {
+            error("Problem writing data file %s: %s\n", commandParams.getDataOutputFile().getPath(), e.getMessage());
+            status = FILE_ERROR;
+        }
+
+        if (commandParams.getSettingsConfigOutputFile() != null) {
+            try {
+                ObjectMapper objectMapper = getInheritanceObjectMapper();
+                objectMapper.writerWithDefaultPrettyPrinter()
+                        .writeValue(commandParams.getSettingsConfigOutputFile(), settingsConfig);
+                output("Settings/config file %s successfully written\n",
+                        commandParams.getSettingsConfigOutputFile().getPath());
+            } catch (Exception e) {
+                error("Problem writing settings/config file: %s: %s\n",
+                        commandParams.getSettingsConfigOutputFile().getPath(), e.getMessage());
+                status = FILE_ERROR;
             }
         }
 
+        return status;
+    }
+
+    private SettingsConfig promptSettingsConfig(String inputContent) {
+        SettingsConfig settingsConfig = new SettingsConfig();
         String matchRegex = null;
         while (true) {
             try {
@@ -61,11 +127,15 @@ public class DataBuilder {
                 }
                 error("No matches for regex: %s in file\n", matchRegex);
             } catch (Exception e) {
-                error("Invalid regex: %s in file\n", matchRegex);
+                error("Invalid regex: %s in file: %s\n", matchRegex, e.getMessage());
             }
         }
+        settingsConfig.setRegex(matchRegex);
 
-        File outputFile = getFile(FileTypes.OUTPUT);
+        List<Enum> availableInputTypes = new ArrayList<>();
+        for (InputTypes inputType: InputTypes.values()) {
+            availableInputTypes.add(inputType);
+        }
 
         while (true) {
             output("\n-- New Field --\n");
@@ -77,7 +147,7 @@ public class DataBuilder {
             }
 
             // Ensure name doesn't already exist
-            if (items.stream().anyMatch(item -> item.getName().equals(name))) {
+            if (settingsConfig.getSettings().stream().anyMatch(item -> item.getName().equals(name))) {
                 error("Name: %s already exists\n", name);
                 continue;
             }
@@ -119,51 +189,24 @@ public class DataBuilder {
                 case LAST_NAME:
                     descriptor = new LastNameDescriptor(name);
                     break;
+                case STATIC_VALUE:
+                    descriptor = new StaticValueDescriptor(name);
+                    break;
                 default:
                     // not expected
                     throw new RuntimeException("Invalid type: " + InputTypes.valueOf(selectedType));
             }
             descriptor.obtainConfiguration();
-            items.add(descriptor);
+            settingsConfig.addSetting(descriptor);
         }
 
-        output("\n-- Serialization --\n");
-
-        SerializationTypes serializationType;
-        if (outputFile.toString().endsWith(".csv")) {
-            serializationType = SerializationTypes.JSON;
-        } else if (outputFile.toString().endsWith(".json")) {
-            serializationType = SerializationTypes.CSV;
-        } else {
-            serializationType = SerializationTypes.valueOf(PromptHelper.promptForEnumValue(
-                    "serialization desired", PromptHelper.StartingIndex.ONE, SerializationTypes.values()));
-        }
-
-        String serializedContent;
-        switch (serializationType) {
-            case CSV:
-                serializedContent = serializeCsv(items, inputContent, matchRegex);
-                break;
-            case JSON:
-                boolean serializeNullValues = PromptHelper.promptYesNo("Do you want to serialize null values?");
-                serializedContent = serializeJson(items, inputContent, matchRegex, serializeNullValues);
-                break;
-            default:
-                throw new RuntimeException("Invalid serialization: " + serializationType);
-        }
-
-        try {
-            Files.writeString(outputFile.toPath(), serializedContent);
-            output("File %s successfully written\n ", outputFile.getPath());
-        } catch (IOException ioException) {
-            error("Problem writing output file %s\n", outputFile.getPath());
-        }
+        return settingsConfig;
     }
 
-    private String serializeJson(ArrayList<DataItemDescriptor> items, String inputContent, String matchRegex,
+    private String serializeJson(String inputContent, SettingsConfig settingsConfig,
                                  boolean serializeNullValues) {
         StringBuilder builder = new StringBuilder(2048);
-        Pattern pattern = Pattern.compile(matchRegex);
+        Pattern pattern = Pattern.compile(settingsConfig.getRegex());
         Matcher matcher = pattern.matcher(inputContent);
         builder.append("[");
         boolean firstMatch = true;
@@ -180,7 +223,7 @@ public class DataBuilder {
 
             // process all the descriptors
             boolean firstDescriptor = true;
-            for (DataItemDescriptor descriptor: items) {
+            for (DataItemDescriptor descriptor: settingsConfig.getSettings()) {
                 descriptor.setIterationState(matcher, randomSeed);
                 String value = descriptor.getNextValue(DataItemDescriptor.NullHandler.AS_NULL);
                 if (value != null || serializeNullValues) {
@@ -198,12 +241,13 @@ public class DataBuilder {
         return builder.toString();
     }
 
-    private String serializeCsv(ArrayList<DataItemDescriptor> items, String inputContent, String matchRegex) {
+    private String serializeCsv(String inputContent, SettingsConfig settingsConfig) {
         StringBuilder builder = new StringBuilder(2048);
-        Pattern pattern = Pattern.compile(matchRegex);
+        Pattern pattern = Pattern.compile(settingsConfig.getRegex());
         Matcher matcher = pattern.matcher(inputContent);
 
-        builder.append(items.stream().map(item -> item.getName()).collect(Collectors.joining(",")));
+        builder.append(settingsConfig.getSettings().stream().map(item ->
+                item.getName()).collect(Collectors.joining(",")));
 
         Random random = new Random();
         while (matcher.find()) {
@@ -211,7 +255,7 @@ public class DataBuilder {
             long randomSeed = random.nextLong();
 
             builder.append("\n");
-            builder.append(items.stream().map(item ->
+            builder.append(settingsConfig.getSettings().stream().map(item ->
                     item.setIterationState(matcher, randomSeed)
                             .getNextValue(DataItemDescriptor.NullHandler.EMPTY))
                     .collect(Collectors.joining(",")));
@@ -219,25 +263,108 @@ public class DataBuilder {
         return builder.toString();
     }
 
-    private File getFile(FileTypes type) {
-        String filename = null;
-        while (true) {
-            try {
-                filename = PromptHelper.promptForValue(type.name().toLowerCase() + " filename");
-                File file = new File(filename);
-                if ((FileTypes.INPUT.equals(type) && file.exists())
-                    || FileTypes.OUTPUT.equals(type) && !file.exists()) {
-                    return file;
-                }
-            } catch (Exception e) {
-                // Do nothing
-            }
-            error("Problem opening %s file: %s\n", type.name().toLowerCase(), filename);
+    public static void main(String[] args) {
+        CommandParams commandParams = new CommandParams();
+        CommandLine commandLine = new CommandLine(commandParams);
+        int response = commandLine.execute(args);
+        if (response != 0) {
+            commandLine.usage(System.out);
+            exit(response);
         }
+
+        DataBuilder dataBuilder = new DataBuilder();
+        exit(dataBuilder.process(commandParams));
     }
 
-    public static void main(String[] args) {
-        DataBuilder dataBuilder = new DataBuilder();
-        dataBuilder.process();
+    private ObjectMapper getInheritanceObjectMapper() {
+        ObjectMapper objectMapper = new ObjectMapper();
+        // Enable polymorphism
+        objectMapper.activateDefaultTyping(objectMapper.getPolymorphicTypeValidator());
+        // Register types of polymorphism
+        objectMapper.registerSubtypes(new NamedType(BooleanDescriptor.class, BooleanDescriptor.class.getSimpleName()));
+        objectMapper.registerSubtypes(new NamedType(EmailDescriptor.class, EmailDescriptor.class.getSimpleName()));
+        objectMapper.registerSubtypes(new NamedType(EmptyDescriptor.class, EmptyDescriptor.class.getSimpleName()));
+        objectMapper.registerSubtypes(new NamedType(EnumValuesDescriptor.class, EnumValuesDescriptor.class.getSimpleName()));
+        objectMapper.registerSubtypes(new NamedType(FileContentDescriptor.class, FileContentDescriptor.class.getSimpleName()));
+        objectMapper.registerSubtypes(new NamedType(FirstNameDescriptor.class, FirstNameDescriptor.class.getSimpleName()));
+        objectMapper.registerSubtypes(new NamedType(IdDescriptor.class, IdDescriptor.class.getSimpleName()));
+        objectMapper.registerSubtypes(new NamedType(IntegerDescriptor.class, IntegerDescriptor.class.getSimpleName()));
+        objectMapper.registerSubtypes(new NamedType(LastNameDescriptor.class, LastNameDescriptor.class.getSimpleName()));
+        objectMapper.registerSubtypes(new NamedType(StaticValueDescriptor.class, StaticValueDescriptor.class.getSimpleName()));
+
+        return objectMapper;
+    }
+
+    private static class CommandParams implements Runnable, CommandLine.IExitCodeGenerator {
+        @picocli.CommandLine.Option(names = {"-h", "--help", "-?"}, usageHelp = true,
+                description = "display a help message")
+        private boolean helpRequested = false;
+
+        @picocli.CommandLine.Option(names = {"-i", "--input"}, paramLabel = "INPUT_SETTINGS_FILE",
+                description = "settings/config input file (not the data input file)")
+        private File settingsConfigInputFile;
+
+        @picocli.CommandLine.Option(names = {"-o", "--output"}, paramLabel = "OUTPUT_SETTINGS_FILE",
+                description = "settings/config output file (not the data output file)")
+        private File settingsConfigOutputFile;
+
+        @CommandLine.Parameters(index = "0", paramLabel="DATA_INPUT_FILE")
+        private File dataInputFile;
+
+        @CommandLine.Parameters(index = "1", paramLabel="DATA_OUTPUT_FILE")
+        private File dataOutputFile;
+
+
+        public File getSettingsConfigInputFile() {
+            return settingsConfigInputFile;
+        }
+
+        public File getSettingsConfigOutputFile() {
+            return settingsConfigOutputFile;
+        }
+
+        public File getDataInputFile() {
+            return dataInputFile;
+        }
+
+        public File getDataOutputFile() {
+            return dataOutputFile;
+        }
+
+        @Override
+        public void run() {
+            // Nothing
+        }
+
+        @Override public int getExitCode() {
+            int exitCode = 0;
+
+            // Validate configSettings
+            if (getSettingsConfigInputFile() != null && !getSettingsConfigInputFile().exists()) {
+                error("Settings/Config input file must exist: %s\n", getSettingsConfigInputFile().getPath());
+                exitCode = CONFIG_ERROR;
+            }
+            if (getSettingsConfigOutputFile() != null && getSettingsConfigOutputFile().exists()) {
+                error("Settings/Config output file must not exist: %s\n", getSettingsConfigOutputFile().getPath());
+                exitCode = CONFIG_ERROR;
+            }
+
+            // Validate input / output files
+            if (getDataInputFile() == null || getDataInputFile() == null) {
+                error("Data input and output files must be specified\n");
+                exitCode = CONFIG_ERROR;
+            } else {
+                if (!getDataInputFile().exists()) {
+                    error("Data input file must exist: %s\n", getDataInputFile().getPath());
+                    exitCode = CONFIG_ERROR;
+                }
+                if (getDataOutputFile().exists()) {
+                    error("Data output file must not exist: %s\n", getDataOutputFile());
+                    exitCode = CONFIG_ERROR;
+                }
+            }
+
+            return exitCode;
+        }
     }
 }

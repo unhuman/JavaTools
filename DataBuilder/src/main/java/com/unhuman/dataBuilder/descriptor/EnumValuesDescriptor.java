@@ -1,5 +1,6 @@
 package com.unhuman.dataBuilder.descriptor;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.unhuman.dataBuilder.input.PromptHelper;
 
 import java.util.LinkedHashMap;
@@ -10,10 +11,17 @@ import static com.unhuman.dataBuilder.input.PromptHelper.error;
 
 public class EnumValuesDescriptor extends DataItemDescriptor {
     private Random random = new Random();
+
+    @JsonProperty
     private Map<String, Integer> dataProbability = new LinkedHashMap<>();
 
     public EnumValuesDescriptor(String name) {
         super(name);
+    }
+
+    private EnumValuesDescriptor() {
+        // For Jackson
+        super();
     }
 
     @Override

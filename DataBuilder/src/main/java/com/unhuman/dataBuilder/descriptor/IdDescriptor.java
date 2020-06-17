@@ -1,5 +1,6 @@
 package com.unhuman.dataBuilder.descriptor;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.unhuman.dataBuilder.input.PromptHelper;
 
 import java.util.UUID;
@@ -7,13 +8,24 @@ import java.util.UUID;
 public class IdDescriptor extends DataItemDescriptor {
     private enum IdType { INCREMENTING, GUID };
 
+    @JsonProperty
     private IdType idType;
 
-    private int incrementingCurrentId = 0;
+    @JsonProperty
+    private int incrementingStartingId = 0;
+
+    @JsonProperty
     private boolean incrementingCurrentIdIsString = false;
+
+    private int incrementingCurrentId = 0;
 
     public IdDescriptor(String name) {
         super(name);
+    }
+
+    private IdDescriptor() {
+        // For Jackson
+        super();
     }
 
     public void obtainConfiguration() {
@@ -27,7 +39,8 @@ public class IdDescriptor extends DataItemDescriptor {
             while (true) {
                 try {
                     String checkStartingId = PromptHelper.promptForValue("Starting Id", "1");
-                    incrementingCurrentId = Integer.parseInt(checkStartingId);
+                    incrementingStartingId = Integer.parseInt(checkStartingId);
+                    incrementingCurrentId = incrementingStartingId;
                     break;
                 } catch (Exception e) {
                     // keep trying

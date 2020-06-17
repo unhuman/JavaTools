@@ -1,5 +1,6 @@
 package com.unhuman.dataBuilder.descriptor;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.unhuman.dataBuilder.input.PromptHelper;
 
 import java.util.Random;
@@ -9,11 +10,19 @@ import static com.unhuman.dataBuilder.input.PromptHelper.error;
 public class IntegerDescriptor extends DataItemDescriptor {
     private Random random = new Random();
 
+    @JsonProperty
     private int minValue;
+
+    @JsonProperty
     private int maxValue;
 
     public IntegerDescriptor(String name) {
         super(name);
+    }
+
+    private IntegerDescriptor() {
+        // For Jackson
+        super();
     }
 
     @Override

@@ -50,10 +50,7 @@ public class PromptHelper {
             if (defaultValue != null) {
                 item += " (default " + defaultValue + ")";
             }
-            String checkInt = promptForValue(item);
-            if (checkInt.isEmpty()) {
-                return defaultValue;
-            }
+            String checkInt = promptForValue(item, (defaultValue != null) ? defaultValue.toString() : null);
             try {
                 return Integer.parseInt(checkInt);
             } catch (Exception e) {
@@ -64,7 +61,7 @@ public class PromptHelper {
 
     public static int promptPercentage(String name, Integer defaultValue) {
         while (true) {
-            int percentage = promptIntegerValue("Enter percentage for " + name, defaultValue);
+            int percentage = promptIntegerValue("percentage for " + name, defaultValue);
             if (percentage > 0 && percentage <= 100) {
                 return percentage;
             }
@@ -80,6 +77,16 @@ public class PromptHelper {
     public static String promptFilteredValue(String item, String regexMatcher) {
         while (true) {
             String checkString = promptForValue(item);
+            if (checkString.matches(regexMatcher)) {
+                return checkString;
+            }
+            error("Invalid value: %s\n", checkString);
+        }
+    }
+
+    public static String promptFilteredValue(String item, String regexMatcher, String defaultValue) {
+        while (true) {
+            String checkString = promptForValue(item, defaultValue);
             if (checkString.matches(regexMatcher)) {
                 return checkString;
             }
