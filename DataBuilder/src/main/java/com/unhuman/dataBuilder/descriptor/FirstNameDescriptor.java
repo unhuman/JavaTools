@@ -1,6 +1,8 @@
 package com.unhuman.dataBuilder.descriptor;
 
-public class FirstNameDescriptor extends DataItemDescriptor {
+import java.util.Random;
+
+public class FirstNameDescriptor extends AbstractCohesiveDataDescriptor {
     public FirstNameDescriptor(String name) {
         super(name);
     }
@@ -18,6 +20,11 @@ public class FirstNameDescriptor extends DataItemDescriptor {
     @Override
     public String getNextValue(NullHandler nullHandler) {
         return '"' + FIRST_NAMES[getNextRandom(FIRST_NAMES.length)] + '"';
+    }
+
+    String getSeededFirstName(long seed) {
+        Random random = new Random(seed);
+        return FIRST_NAMES[random.nextInt(FIRST_NAMES.length)];
     }
 
     // snagged from: https://raw.githubusercontent.com/dominictarr/random-name/master/first-names.json

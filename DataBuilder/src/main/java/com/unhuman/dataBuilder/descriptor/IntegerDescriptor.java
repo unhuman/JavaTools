@@ -7,7 +7,7 @@ import java.util.Random;
 
 import static com.unhuman.dataBuilder.input.PromptHelper.error;
 
-public class IntegerDescriptor extends DataItemDescriptor {
+public class IntegerDescriptor extends AbstractEntityTypeDescriptor {
     private Random random = new Random();
 
     @JsonProperty

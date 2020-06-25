@@ -3,7 +3,7 @@ package com.unhuman.dataBuilder.descriptor;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.unhuman.dataBuilder.input.PromptHelper;
 
-public class EmailDescriptor extends DataItemDescriptor {
+public class EmailDescriptor extends AbstractCohesiveDataDescriptor {
     @JsonProperty
     private String domain;
 
@@ -23,8 +23,12 @@ public class EmailDescriptor extends DataItemDescriptor {
 
     @Override
     public String getNextValue(NullHandler nullHandler) {
-        return '"' + new FirstNameDescriptor(getName()).setIterationState(null, getRandomSeed()).getNextValue(NullHandler.AS_NULL) +
-                new LastNameDescriptor(getName()).setIterationState(null, getRandomSeed()).getNextValue(NullHandler.AS_NULL) +
+        // Track this item
+        getNextRandom(Integer.MAX_VALUE);
+
+        return '"' +
+                new FirstNameDescriptor(getName()).getSeededFirstName(getRandomSeed()).substring(0, 1) +
+                new LastNameDescriptor(getName()).getSeededLastName(getRandomSeed()) +
                 "@" + domain + '"';
     }
 }

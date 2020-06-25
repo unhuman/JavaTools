@@ -1,6 +1,6 @@
 package com.unhuman.dataBuilder.descriptor;
 
-public class EmptyDescriptor extends DataItemDescriptor {
+public class EmptyDescriptor extends AbstractEntityTypeDescriptor {
     public EmptyDescriptor(String name) {
         super(name);
     }

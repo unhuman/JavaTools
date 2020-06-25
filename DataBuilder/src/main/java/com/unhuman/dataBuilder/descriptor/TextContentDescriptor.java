@@ -7,7 +7,7 @@ import java.util.Random;
 
 import static com.unhuman.dataBuilder.input.PromptHelper.error;
 
-public class TextContentDescriptor extends DataItemDescriptor {
+public class TextContentDescriptor extends AbstractEntityTypeDescriptor {
     private Random random = new Random();
 
     // Define min + max words in a sentence

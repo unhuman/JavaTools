@@ -3,7 +3,7 @@ package com.unhuman.dataBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.unhuman.dataBuilder.descriptor.BooleanDescriptor;
-import com.unhuman.dataBuilder.descriptor.DataItemDescriptor;
+import com.unhuman.dataBuilder.descriptor.AbstractEntityTypeDescriptor;
 import com.unhuman.dataBuilder.descriptor.EmailDescriptor;
 import com.unhuman.dataBuilder.descriptor.EmptyDescriptor;
 import com.unhuman.dataBuilder.descriptor.EnumValuesDescriptor;
@@ -197,7 +197,7 @@ public class DataBuilder {
                             PromptHelper.StartingIndex.ONE,
                             availableContentTypes.toArray(displayContentTypes));
 
-            DataItemDescriptor descriptor = null;
+            AbstractEntityTypeDescriptor descriptor = null;
             switch (ContentTypes.valueOf(selectedType)) {
                 case ID:
                     // only permit one id
@@ -252,11 +252,7 @@ public class DataBuilder {
         Matcher matcher = pattern.matcher(inputContent);
         builder.append("[");
         boolean firstMatch = true;
-        Random random = new Random();
         while (matcher.find()) {
-            // Create a seed for each round
-            long randomSeed = random.nextLong();
-
             if (!firstMatch) {
                 builder.append(",");
             }
@@ -265,9 +261,9 @@ public class DataBuilder {
 
             // process all the descriptors
             boolean firstDescriptor = true;
-            for (DataItemDescriptor descriptor: settingsConfig.getSettings()) {
-                descriptor.setIterationState(matcher, randomSeed);
-                String value = descriptor.getNextValue(DataItemDescriptor.NullHandler.AS_NULL);
+            for (AbstractEntityTypeDescriptor descriptor: settingsConfig.getSettings()) {
+                descriptor.setIterationState(matcher);
+                String value = descriptor.getNextValue(AbstractEntityTypeDescriptor.NullHandler.AS_NULL);
                 if (value != null || serializeNullValues) {
                     if (!firstDescriptor) {
                         builder.append(",");
@@ -291,15 +287,11 @@ public class DataBuilder {
         builder.append(settingsConfig.getSettings().stream().map(item ->
                 item.getName()).collect(Collectors.joining(",")));
 
-        Random random = new Random();
         while (matcher.find()) {
-            // Create a seed for each round
-            long randomSeed = random.nextLong();
-
             builder.append("\n");
             builder.append(settingsConfig.getSettings().stream().map(item ->
-                    item.setIterationState(matcher, randomSeed)
-                            .getNextValue(DataItemDescriptor.NullHandler.EMPTY))
+                    item.setIterationState(matcher)
+                            .getNextValue(AbstractEntityTypeDescriptor.NullHandler.EMPTY))
                     .collect(Collectors.joining(",")));
         }
         return builder.toString();
@@ -316,7 +308,7 @@ public class DataBuilder {
         Matcher tokenMatcher = TOKEN_PATTERN.matcher(inputContent);
         while (tokenMatcher.find()) {
             String tokenName = tokenMatcher.group(1);
-            String value = settingsConfig.getSetting(tokenName).getNextValue(DataItemDescriptor.NullHandler.AS_NULL);
+            String value = settingsConfig.getSetting(tokenName).getNextValue(AbstractEntityTypeDescriptor.NullHandler.AS_NULL);
             tokenMatcher.appendReplacement(builder, value);
         }
         tokenMatcher.appendTail(builder);

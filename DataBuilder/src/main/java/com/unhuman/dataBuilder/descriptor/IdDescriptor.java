@@ -5,7 +5,7 @@ import com.unhuman.dataBuilder.input.PromptHelper;
 
 import java.util.UUID;
 
-public class IdDescriptor extends DataItemDescriptor {
+public class IdDescriptor extends AbstractEntityTypeDescriptor {
     private enum IdType { INCREMENTING, GUID };
 
     @JsonProperty

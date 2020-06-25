@@ -1,7 +1,7 @@
 package com.unhuman.dataBuilder;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.unhuman.dataBuilder.descriptor.DataItemDescriptor;
+import com.unhuman.dataBuilder.descriptor.AbstractEntityTypeDescriptor;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -10,7 +10,7 @@ import java.util.List;
 public class SettingsConfig {
     public LinkedHashSet<String> replacementTokens;
     private String regex;
-    private List<DataItemDescriptor> settings;
+    private List<AbstractEntityTypeDescriptor> settings;
 
     public SettingsConfig() {
         replacementTokens = null;
@@ -39,19 +39,19 @@ public class SettingsConfig {
         this.regex = regex;
     }
 
-    public List<DataItemDescriptor> getSettings() {
+    public List<AbstractEntityTypeDescriptor> getSettings() {
         return settings;
     }
 
-    public void addSetting(DataItemDescriptor setting) {
+    public void addSetting(AbstractEntityTypeDescriptor setting) {
         this.settings.add(setting);
     }
 
-    public DataItemDescriptor getSetting(String name) {
+    public AbstractEntityTypeDescriptor getSetting(String name) {
         return settings.stream().filter(item -> name.equals(item.getName())).findFirst().get();
     }
 
-    public void setSettings(List<DataItemDescriptor> settings) {
+    public void setSettings(List<AbstractEntityTypeDescriptor> settings) {
         this.settings = settings;
     }
 }

@@ -9,7 +9,7 @@ import java.util.Random;
 
 import static com.unhuman.dataBuilder.input.PromptHelper.error;
 
-public class EnumValuesDescriptor extends DataItemDescriptor {
+public class EnumValuesDescriptor extends AbstractEntityTypeDescriptor {
     private Random random = new Random();
 
     @JsonProperty

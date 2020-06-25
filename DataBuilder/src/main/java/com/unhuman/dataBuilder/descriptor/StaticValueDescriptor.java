@@ -3,7 +3,7 @@ package com.unhuman.dataBuilder.descriptor;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.unhuman.dataBuilder.input.PromptHelper;
 
-public class StaticValueDescriptor extends DataItemDescriptor {
+public class StaticValueDescriptor extends AbstractEntityTypeDescriptor {
     @JsonProperty
     private String value;
 

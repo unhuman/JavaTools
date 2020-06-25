@@ -5,7 +5,7 @@ import com.unhuman.dataBuilder.input.PromptHelper;
 
 import java.util.regex.Matcher;
 
-public class FileContentDescriptor extends DataItemDescriptor {
+public class FileContentDescriptor extends AbstractEntityTypeDescriptor {
     @JsonProperty
     private int fieldFromContent = -1;
 

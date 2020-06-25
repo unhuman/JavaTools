@@ -1,6 +1,8 @@
 package com.unhuman.dataBuilder.descriptor;
 
-public class LastNameDescriptor extends DataItemDescriptor {
+import java.util.Random;
+
+public class LastNameDescriptor extends AbstractCohesiveDataDescriptor {
     public LastNameDescriptor(String name) {
         super(name);
     }
@@ -18,6 +20,11 @@ public class LastNameDescriptor extends DataItemDescriptor {
     @Override
     public String getNextValue(NullHandler nullHandler) {
         return '"' + LAST_NAMES[getNextRandom(LAST_NAMES.length)] + '"';
+    }
+
+    String getSeededLastName(long seed) {
+        Random random = new Random(seed);
+        return LAST_NAMES[random.nextInt(LAST_NAMES.length)];
     }
 
     // truncated from: https://raw.githubusercontent.com/rossgoodwin/american-names/master/surnames.json

@@ -6,7 +6,7 @@ import com.unhuman.dataBuilder.input.PromptHelper;
 
 import java.util.Random;
 
-public class BooleanDescriptor extends DataItemDescriptor {
+public class BooleanDescriptor extends AbstractEntityTypeDescriptor {
     private Random random = new Random();
 
     @JsonProperty
