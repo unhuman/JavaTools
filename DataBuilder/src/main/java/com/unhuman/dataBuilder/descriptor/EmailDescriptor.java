@@ -11,8 +11,8 @@ public class EmailDescriptor extends DataItemDescriptor {
         super(name);
     }
 
+    // For Jackson
     private EmailDescriptor() {
-        // For Jackson
         super();
     }
 

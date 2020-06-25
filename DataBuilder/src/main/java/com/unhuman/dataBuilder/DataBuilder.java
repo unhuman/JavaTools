@@ -13,12 +13,14 @@ import com.unhuman.dataBuilder.descriptor.IdDescriptor;
 import com.unhuman.dataBuilder.descriptor.IntegerDescriptor;
 import com.unhuman.dataBuilder.descriptor.LastNameDescriptor;
 import com.unhuman.dataBuilder.descriptor.StaticValueDescriptor;
+import com.unhuman.dataBuilder.descriptor.TextContentDescriptor;
 import com.unhuman.dataBuilder.input.PromptHelper;
 import picocli.CommandLine;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.regex.Matcher;
@@ -35,9 +37,13 @@ public class DataBuilder {
     private static final int FILE_ERROR = -2;
 
     // When updating this list, you need to also update promptSettingsConfig() and getInheritanceObjectMapper()
-    private enum InputTypes { ID, BOOLEAN, INTEGER,
-        EMAIL, EMPTY_STRING, ENUM_VALUES, FILE_CONTENT, FIRST_NAME, LAST_NAME, STATIC_VALUE }
-    private enum SerializationTypes { CSV, JSON }
+    private enum ContentTypes { ID, BOOLEAN, INTEGER,
+        EMAIL, EMPTY_STRING, ENUM_VALUES, FILE_CONTENT, FIRST_NAME, LAST_NAME, STATIC_VALUE, TEXT }
+    private enum SerializationTypes { CSV, JSON, TOKEN_REPLACEMENT}
+
+    private enum InputFileType { EXTRACTION, TOKEN_BASED }
+    // $[name] tokens to treat inputfile as replacements
+    private static final Pattern TOKEN_PATTERN = Pattern.compile("\\$\\[(.*?)\\]");
 
     protected int process(CommandParams commandParams) {
         String inputContent = null;
@@ -62,16 +68,20 @@ public class DataBuilder {
             settingsConfig = promptSettingsConfig(inputContent);
         }
 
-        output("\n-- Serialization --\n");
-
         SerializationTypes serializationType;
-        if (commandParams.getDataOutputFile().toString().endsWith(".csv")) {
-            serializationType = SerializationTypes.CSV;
-        } else if (commandParams.getDataOutputFile().toString().endsWith(".json")) {
-            serializationType = SerializationTypes.JSON;
+        if (settingsConfig.isTokenBased()) {
+            serializationType = SerializationTypes.TOKEN_REPLACEMENT;
         } else {
-            serializationType = SerializationTypes.valueOf(PromptHelper.promptForEnumValue(
-                    "serialization desired", PromptHelper.StartingIndex.ONE, SerializationTypes.values()));
+            output("\n-- Serialization --\n");
+
+            if (commandParams.getDataOutputFile().toString().endsWith(".csv")) {
+                serializationType = SerializationTypes.CSV;
+            } else if (commandParams.getDataOutputFile().toString().endsWith(".json")) {
+                serializationType = SerializationTypes.JSON;
+            } else {
+                serializationType = SerializationTypes.valueOf(PromptHelper.promptForEnumValue(
+                        "serialization desired", PromptHelper.StartingIndex.ONE, SerializationTypes.values()));
+            }
         }
 
         String serializedContent;
@@ -83,12 +93,14 @@ public class DataBuilder {
                 boolean serializeNullValues = PromptHelper.promptYesNo("Do you want to serialize null values?");
                 serializedContent = serializeJson(inputContent, settingsConfig, serializeNullValues);
                 break;
+            case TOKEN_REPLACEMENT:
+                serializedContent = serializeDirect(inputContent, settingsConfig);
+                break;
             default:
                 throw new RuntimeException("Invalid serialization: " + serializationType);
         }
 
         int status = SUCCESS;
-
         try {
             Files.writeString(commandParams.getDataOutputFile().toPath(), serializedContent);
             output("Data file %s successfully written\n", commandParams.getDataOutputFile().getPath());
@@ -116,53 +128,80 @@ public class DataBuilder {
 
     private SettingsConfig promptSettingsConfig(String inputContent) {
         SettingsConfig settingsConfig = new SettingsConfig();
-        String matchRegex = null;
+
+        List<Enum> availableContentTypes = new ArrayList<>();
+        for (ContentTypes contentType: ContentTypes.values()) {
+            availableContentTypes.add(contentType);
+        }
+
+        // behave differently if the inputContent is an existing file with replacements
+        // versus content to be extracted.
+
+        Matcher tokenPatternMatcher = TOKEN_PATTERN.matcher(inputContent);
+        LinkedHashSet<String> tokenNames = null;
+        if (tokenPatternMatcher.find()) {
+            // We don't allow FILE_CONTENT data because we're already in the file
+            availableContentTypes.remove(ContentTypes.FILE_CONTENT);
+            tokenNames = new LinkedHashSet<>();
+            do {
+                tokenNames.add(tokenPatternMatcher.group(1));
+            } while (tokenPatternMatcher.find());
+            settingsConfig.setReplacementTokens(tokenNames);
+        } else {
+            String matchRegex = null;
+            while (true) {
+                try {
+                    matchRegex = PromptHelper.promptForValue("matching regex");
+                    Pattern pattern = Pattern.compile(matchRegex);
+                    Matcher matcher = pattern.matcher(inputContent);
+                    if (matcher.find()) {
+                        break;
+                    }
+                    error("No matches for regex: %s in file\n", matchRegex);
+                } catch (Exception e) {
+                    error("Invalid regex: %s in file: %s\n", matchRegex, e.getMessage());
+                }
+            }
+            settingsConfig.setRegex(matchRegex);
+        }
+
+        int currentTokenName = 0;
         while (true) {
-            try {
-                matchRegex = PromptHelper.promptForValue("matching regex");
-                Pattern pattern = Pattern.compile(matchRegex);
-                Matcher matcher = pattern.matcher(inputContent);
-                if (matcher.find()) {
+            String name;
+            if (tokenNames != null) {
+                if (currentTokenName >= tokenNames.size()) {
                     break;
                 }
-                error("No matches for regex: %s in file\n", matchRegex);
-            } catch (Exception e) {
-                error("Invalid regex: %s in file: %s\n", matchRegex, e.getMessage());
-            }
-        }
-        settingsConfig.setRegex(matchRegex);
 
-        List<Enum> availableInputTypes = new ArrayList<>();
-        for (InputTypes inputType: InputTypes.values()) {
-            availableInputTypes.add(inputType);
-        }
+                name = tokenNames.toArray(new String[tokenNames.size()])[currentTokenName];
+                ++currentTokenName;
+            } else {
+                output("\n-- New Field --\n");
+                name = PromptHelper.promptForValue("field name (empty to stop)", "");
 
-        while (true) {
-            output("\n-- New Field --\n");
-            String name = PromptHelper.promptForValue("field name (empty to stop)", "");
+                // Empty name = we're done
+                if (name.isBlank()) {
+                    break;
+                }
 
-            // Empty name = we're done
-            if (name.isBlank()) {
-                break;
+                // Ensure name doesn't already exist
+                if (settingsConfig.getSettings().stream().anyMatch(item -> item.getName().equals(name))) {
+                    error("Name: %s already exists\n", name);
+                    continue;
+                }
             }
 
-            // Ensure name doesn't already exist
-            if (settingsConfig.getSettings().stream().anyMatch(item -> item.getName().equals(name))) {
-                error("Name: %s already exists\n", name);
-                continue;
-            }
-
-            InputTypes[] displayInputTypes = new InputTypes[availableInputTypes.size()];
+            ContentTypes[] displayContentTypes = new ContentTypes[availableContentTypes.size()];
             String selectedType =
                     PromptHelper.promptForEnumValue("data type for " + name,
                             PromptHelper.StartingIndex.ONE,
-                            availableInputTypes.toArray(displayInputTypes));
+                            availableContentTypes.toArray(displayContentTypes));
 
             DataItemDescriptor descriptor = null;
-            switch (InputTypes.valueOf(selectedType)) {
+            switch (ContentTypes.valueOf(selectedType)) {
                 case ID:
                     // only permit one id
-                    availableInputTypes.remove(InputTypes.ID);
+                    availableContentTypes.remove(ContentTypes.ID);
                     descriptor = new IdDescriptor(name);
                     break;
                 case BOOLEAN:
@@ -192,9 +231,12 @@ public class DataBuilder {
                 case STATIC_VALUE:
                     descriptor = new StaticValueDescriptor(name);
                     break;
+                case TEXT:
+                    descriptor = new TextContentDescriptor(name);
+                    break;
                 default:
                     // not expected
-                    throw new RuntimeException("Invalid type: " + InputTypes.valueOf(selectedType));
+                    throw new RuntimeException("Invalid type: " + ContentTypes.valueOf(selectedType));
             }
             descriptor.obtainConfiguration();
             settingsConfig.addSetting(descriptor);
@@ -263,6 +305,24 @@ public class DataBuilder {
         return builder.toString();
     }
 
+    private String serializeDirect(String inputContent, SettingsConfig settingsConfig) {
+        StringBuilder builder = new StringBuilder(2048);
+
+        // TODO: Fix random seeding
+        // TODO: Perhaps this could be a function of changing FirstName + LastName + Email to be intermingledly aware.
+        Random random = new Random();
+        long randomSeed = random.nextLong();
+
+        Matcher tokenMatcher = TOKEN_PATTERN.matcher(inputContent);
+        while (tokenMatcher.find()) {
+            String tokenName = tokenMatcher.group(1);
+            String value = settingsConfig.getSetting(tokenName).getNextValue(DataItemDescriptor.NullHandler.AS_NULL);
+            tokenMatcher.appendReplacement(builder, value);
+        }
+        tokenMatcher.appendTail(builder);
+        return builder.toString();
+    }
+
     public static void main(String[] args) {
         CommandParams commandParams = new CommandParams();
         CommandLine commandLine = new CommandLine(commandParams);
@@ -291,6 +351,7 @@ public class DataBuilder {
         objectMapper.registerSubtypes(new NamedType(IntegerDescriptor.class, IntegerDescriptor.class.getSimpleName()));
         objectMapper.registerSubtypes(new NamedType(LastNameDescriptor.class, LastNameDescriptor.class.getSimpleName()));
         objectMapper.registerSubtypes(new NamedType(StaticValueDescriptor.class, StaticValueDescriptor.class.getSimpleName()));
+        objectMapper.registerSubtypes(new NamedType(TextContentDescriptor.class, TextContentDescriptor.class.getSimpleName()));
 
         return objectMapper;
     }
@@ -313,7 +374,6 @@ public class DataBuilder {
 
         @CommandLine.Parameters(index = "1", paramLabel="DATA_OUTPUT_FILE")
         private File dataOutputFile;
-
 
         public File getSettingsConfigInputFile() {
             return settingsConfigInputFile;

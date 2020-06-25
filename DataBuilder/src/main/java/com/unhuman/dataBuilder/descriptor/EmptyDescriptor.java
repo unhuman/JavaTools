@@ -5,8 +5,8 @@ public class EmptyDescriptor extends DataItemDescriptor {
         super(name);
     }
 
+    // For Jackson
     private EmptyDescriptor() {
-        // For Jackson
         super();
     }
 

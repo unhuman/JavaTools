@@ -19,8 +19,8 @@ public class EnumValuesDescriptor extends DataItemDescriptor {
         super(name);
     }
 
+    // For Jackson
     private EnumValuesDescriptor() {
-        // For Jackson
         super();
     }
 

@@ -18,8 +18,8 @@ public abstract class DataItemDescriptor {
         this.name = name;
     }
 
+    // For Jackson
     protected DataItemDescriptor() {
-        // For Jackson
     }
 
     protected Long getRandomSeed() {

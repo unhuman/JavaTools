@@ -20,8 +20,8 @@ public class IntegerDescriptor extends DataItemDescriptor {
         super(name);
     }
 
+    // For Jackson
     private IntegerDescriptor() {
-        // For Jackson
         super();
     }
 

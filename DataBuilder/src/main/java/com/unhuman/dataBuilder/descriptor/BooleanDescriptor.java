@@ -16,8 +16,8 @@ public class BooleanDescriptor extends DataItemDescriptor {
         super(name);
     }
 
+    // For Jackson
     private BooleanDescriptor() {
-        // For Jackson
         super();
     }
 

@@ -23,8 +23,8 @@ public class IdDescriptor extends DataItemDescriptor {
         super(name);
     }
 
+    // For Jackson
     private IdDescriptor() {
-        // For Jackson
         super();
     }
 

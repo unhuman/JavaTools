@@ -16,8 +16,8 @@ public class FileContentDescriptor extends DataItemDescriptor {
         super(name);
     }
 
+    // For Jackson
     private FileContentDescriptor() {
-        // For Jackson
         super();
     }
 

@@ -14,8 +14,8 @@ public class StaticValueDescriptor extends DataItemDescriptor {
         super(name);
     }
 
+    // For Jackson
     private StaticValueDescriptor() {
-        // For Jackson
         super();
     }
 
