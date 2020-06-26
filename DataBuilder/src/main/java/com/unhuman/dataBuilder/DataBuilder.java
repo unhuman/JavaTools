@@ -2,8 +2,9 @@ package com.unhuman.dataBuilder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
-import com.unhuman.dataBuilder.descriptor.BooleanDescriptor;
+import com.unhuman.dataBuilder.descriptor.AbstractCohesiveDataDescriptor;
 import com.unhuman.dataBuilder.descriptor.AbstractEntityTypeDescriptor;
+import com.unhuman.dataBuilder.descriptor.BooleanDescriptor;
 import com.unhuman.dataBuilder.descriptor.EmailDescriptor;
 import com.unhuman.dataBuilder.descriptor.EmptyDescriptor;
 import com.unhuman.dataBuilder.descriptor.EnumValuesDescriptor;
@@ -22,7 +23,6 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -253,6 +253,9 @@ public class DataBuilder {
         builder.append("[");
         boolean firstMatch = true;
         while (matcher.find()) {
+            // We know this is a new record - so reset common state
+            AbstractCohesiveDataDescriptor.reset();
+
             if (!firstMatch) {
                 builder.append(",");
             }
@@ -284,10 +287,14 @@ public class DataBuilder {
         Pattern pattern = Pattern.compile(settingsConfig.getRegex());
         Matcher matcher = pattern.matcher(inputContent);
 
+        // serialize out the heading
         builder.append(settingsConfig.getSettings().stream().map(item ->
                 item.getName()).collect(Collectors.joining(",")));
 
         while (matcher.find()) {
+            // We know this is a new record - so reset common state
+            AbstractCohesiveDataDescriptor.reset();
+
             builder.append("\n");
             builder.append(settingsConfig.getSettings().stream().map(item ->
                     item.setIterationState(matcher)
@@ -300,13 +307,11 @@ public class DataBuilder {
     private String serializeDirect(String inputContent, SettingsConfig settingsConfig) {
         StringBuilder builder = new StringBuilder(2048);
 
-        // TODO: Fix random seeding
-        // TODO: Perhaps this could be a function of changing FirstName + LastName + Email to be intermingledly aware.
-        Random random = new Random();
-        long randomSeed = random.nextLong();
-
         Matcher tokenMatcher = TOKEN_PATTERN.matcher(inputContent);
         while (tokenMatcher.find()) {
+            // TODO: Currently no concept of a new record, so we can't reset AbstractCohesiveDataDescriptor.reset();
+            // Possible fix determine if this is a CSV or JSON and go from there...
+
             String tokenName = tokenMatcher.group(1);
             String value = settingsConfig.getSetting(tokenName).getNextValue(AbstractEntityTypeDescriptor.NullHandler.AS_NULL);
             tokenMatcher.appendReplacement(builder, value);

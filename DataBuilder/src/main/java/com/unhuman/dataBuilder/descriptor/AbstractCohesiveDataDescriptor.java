@@ -28,8 +28,10 @@ public abstract class AbstractCohesiveDataDescriptor extends AbstractEntityTypeD
         return randomSeed;
     }
 
-    /** for unit tests */
-    protected static void reset() {
+    /**
+     * Reset state - entirely new starting point (ie new record known to be starting)
+     */
+    public static void reset() {
         inProcessClasses.clear();
     }
 
